@@ -1,0 +1,4 @@
+github.com/keylogme/zero-trust-logger v0.0.0-20241003192414-70141e53b7f9 h1:cXiwWFtgDC/GcN8SfBAidCT9Z3n0Ngi8gpdvlT4H/wM=
+github.com/keylogme/zero-trust-logger v0.0.0-20241003192414-70141e53b7f9/go.mod h1:gHNBrcDbKUcCOYPQDajQ9SKbZwFB6liEhmobdgvphkU=
+golang.org/x/net v0.29.0 h1:5ORfpBpCs4HzDYoodCDBbwHzdR5UrLBZ3sOnUJmFoHo=
+golang.org/x/net v0.29.0/go.mod h1:gLkgy8jTGERgjzMic6DS9+SP0ajcu6Xu3Orq/SpETg0=
