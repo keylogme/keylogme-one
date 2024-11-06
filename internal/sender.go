@@ -16,6 +16,10 @@ type Sender struct {
 	ws              *websocket.Conn
 	max_retries     int64
 	retry_duration  time.Duration
+	isClosed        bool
+	reader          chan bool
+	writer          chan []byte
+	// done            chan struct{}
 }
 
 func MustGetNewSender(origin, apikey string) *Sender {
@@ -33,26 +37,66 @@ func MustGetNewSender(origin, apikey string) *Sender {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	return &Sender{
+	s := &Sender{
 		origin_endpoint: origin,
 		url_ws:          url_ws,
 		ws:              ws,
 		max_retries:     10000,
 		retry_duration:  1 * time.Second,
+		isClosed:        false,
+		reader:          make(chan bool),
+		writer:          make(chan []byte),
+		// done:            make(chan struct{}),
 	}
+	s.read()
+	s.write()
+
+	return s
+}
+
+func (s *Sender) write() {
+	go func(s *Sender) {
+		// defer close(s.done)
+		for p := range s.writer {
+		retry:
+			slog.Info(fmt.Sprintf("Sending payload %s\n", string(p)))
+			_, err := s.ws.Write(p)
+			if err != nil {
+				slog.Error(fmt.Sprintf("Failed to send %s : details %s\n", string(p), err.Error()))
+				if err := s.reconnect(); err != nil {
+					s.isClosed = true
+				}
+				// retry
+				slog.Info(fmt.Sprintf("Retrying payload %s\n", string(p)))
+				goto retry
+			}
+		}
+	}(s)
+}
+
+func (s *Sender) read() {
+	go func(s *Sender) {
+		// defer close(s.done)
+		for {
+			var msg []byte
+			_, err := s.ws.Read(msg)
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			log.Printf("recv: %s", msg)
+			// TODO: add a select
+			// first select to read EOF
+			// second every 5 s ping server
+			// for above better migrate and use gorilla websocket to handle these things easier?
+			// ws/websocket also supports deadlines
+			// test: could it be to replicate this, to shutdown server?
+		}
+	}(s)
 }
 
 func (s *Sender) Send(p []byte) error {
-	_, err := s.ws.Write(p)
-	if err != nil {
-		slog.Error(err.Error())
-		err = s.reconnect()
-		if err != nil {
-			return err
-		}
-		// retry
-		s.Send(p)
-	}
+	s.writer <- p
 	return nil
 }
 
@@ -65,6 +109,8 @@ func (s *Sender) reconnect() error {
 			continue
 		}
 		slog.Info(fmt.Sprintf("Reconnected after %d retries\n", i+1))
+		s.read()
+		s.isClosed = false
 		s.ws = ws_reconnect
 		return nil
 	}
@@ -72,5 +118,8 @@ func (s *Sender) reconnect() error {
 }
 
 func (s *Sender) Close() error {
+	close(s.reader)
+	close(s.writer)
+	// close(s.done)
 	return s.ws.Close()
 }
