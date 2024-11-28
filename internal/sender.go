@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type Sender struct {
@@ -19,7 +19,7 @@ type Sender struct {
 	isClosed        bool
 	reader          chan bool
 	writer          chan []byte
-	// done            chan struct{}
+	done            chan struct{}
 }
 
 func MustGetNewSender(origin, apikey string) *Sender {
@@ -32,67 +32,103 @@ func MustGetNewSender(origin, apikey string) *Sender {
 
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
-
-	ws, err := websocket.Dial(url_ws, "", origin)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
 	s := &Sender{
 		origin_endpoint: origin,
 		url_ws:          url_ws,
-		ws:              ws,
+		ws:              nil,
 		max_retries:     10000,
 		retry_duration:  1 * time.Second,
 		isClosed:        false,
 		reader:          make(chan bool),
 		writer:          make(chan []byte),
-		// done:            make(chan struct{}),
+		done:            nil,
 	}
-	s.read()
-	s.write()
-
+	go s.handleReconnects()
 	return s
 }
 
+func (s *Sender) connectWS() error {
+	if s.url_ws == "" {
+		return fmt.Errorf("url_ws is empty")
+	}
+	ws, _, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+	s.ws = ws
+	s.done = make(chan struct{})
+	defer func() {
+		s.ws.Close()
+		s.ws = nil
+	}()
+	go s.read()
+	s.write()
+	slog.Info("Client finished connection")
+	return nil
+}
+
+func (s *Sender) handleReconnects() {
+	if s.ws == nil {
+		// blocking call to start reading keylogger
+		// s.isClosed = false
+		s.connectWS()
+		// s.isClosed = true
+		time.Sleep(1 * time.Second)
+		// d.keylogger.Close()
+	}
+
+	s.handleReconnects()
+}
+
 func (s *Sender) write() {
-	go func(s *Sender) {
-		// defer close(s.done)
-		for p := range s.writer {
-		retry:
-			slog.Info(fmt.Sprintf("Sending payload %s\n", string(p)))
-			_, err := s.ws.Write(p)
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case _, ok := <-s.done:
+			if !ok {
+				slog.Info("Done signal received")
+				return
+			}
+		case p, ok := <-s.writer:
+			if !ok {
+				return
+			}
+			if s.ws == nil {
+				slog.Info(fmt.Sprintf("ws disconnected and payload %s lost\n", string(p)))
+				continue
+			}
+			slog.Info(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
+			err := s.ws.WriteMessage(websocket.BinaryMessage, p)
 			if err != nil {
-				slog.Error(fmt.Sprintf("Failed to send %s : details %s\n", string(p), err.Error()))
-				if err := s.reconnect(); err != nil {
-					s.isClosed = true
-				}
-				// retry
-				slog.Info(fmt.Sprintf("Retrying payload %s\n", string(p)))
-				goto retry
+				slog.Error(
+					fmt.Sprintf("Failed to send %s : details %s\n", string(p), err.Error()),
+				)
+				return
 			}
 		}
-	}(s)
+	}
 }
 
 func (s *Sender) read() {
-	go func(s *Sender) {
-		// defer close(s.done)
-		for {
-			var msg []byte
-			_, err := s.ws.Read(msg)
-			if err != nil {
-				log.Println("read:", err)
-				return
+	defer close(s.done)
+	for {
+		var msg []byte
+		_, msg, err := s.ws.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(
+				err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure,
+			) {
+				fmt.Printf("Unexpected close error: %v\n", err)
 			}
-			log.Printf("recv: %s", msg)
-			// TODO: add a select
-			// first select to read EOF
-			// second every 5 s ping server
-			// for above better migrate and use gorilla websocket to handle these things easier?
-			// ws/websocket also supports deadlines
-			// test: could it be to replicate this, to shutdown server?
+			slog.Error(fmt.Sprintf("sender:read: %s\n", err.Error()))
+			return
 		}
-	}(s)
+		log.Printf("recv: %s", msg)
+	}
 }
 
 func (s *Sender) Send(p []byte) error {
@@ -104,14 +140,17 @@ func (s *Sender) reconnect() error {
 	for i := range s.max_retries {
 		slog.Info("Waiting for reconnecting...")
 		time.Sleep(s.retry_duration)
-		ws_reconnect, err := websocket.Dial(s.url_ws, "", s.origin_endpoint)
+		err := s.connectWS()
 		if err != nil {
 			continue
 		}
+		// ws_reconnect, _, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
+		// if err != nil {
+		// 	continue
+		// }
 		slog.Info(fmt.Sprintf("Reconnected after %d retries\n", i+1))
-		s.read()
-		s.isClosed = false
-		s.ws = ws_reconnect
+		// s.isClosed = false
+		// s.ws = ws_reconnect
 		return nil
 	}
 	return fmt.Errorf("Maximum retries excedeed\n")
