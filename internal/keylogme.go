@@ -15,7 +15,7 @@ func MustGetNewKeylogMeStorage(origin, apiKey string) *KeylogMeStorage {
 	return &KeylogMeStorage{sender: sender}
 }
 
-func (ks *KeylogMeStorage) SaveKeylog(deviceId int64, keycode uint16) error {
+func (ks *KeylogMeStorage) SaveKeylog(deviceId string, keycode uint16) error {
 	payloadBytes, err := getPayload(
 		KeyLogPayload,
 		KeylogPayloadV1{KeyboardDeviceId: deviceId, Code: keycode},
@@ -26,7 +26,7 @@ func (ks *KeylogMeStorage) SaveKeylog(deviceId int64, keycode uint16) error {
 	return ks.sender.Send(payloadBytes)
 }
 
-func (ks *KeylogMeStorage) SaveShortcut(deviceId int64, shortcutId int64) error {
+func (ks *KeylogMeStorage) SaveShortcut(deviceId string, shortcutId int64) error {
 	start := time.Now()
 	defer func() {
 		slog.Info(fmt.Sprintf("| %s | Shortcut %d\n", time.Since(start), shortcutId))
