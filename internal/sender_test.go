@@ -82,8 +82,10 @@ func TestSender(t *testing.T) {
 func TestSenderWithDelay(t *testing.T) {
 	expected := []string{}
 	server := mustGetServer(&expected, 1*time.Second, 0)
+	defer server.Close()
 
 	sender := MustGetNewSender(server.URL, "fake-key")
+	// defer sender.Close()
 	// send payload
 	// server.CloseClientConnections()
 	payloads := []string{"1", "2", "3", "4", "5"}
@@ -102,10 +104,9 @@ func TestWithDeadline(t *testing.T) {
 	expected := []string{}
 	deadline := 1 * time.Second
 	server := mustGetServer(&expected, 0, deadline)
-	defer server.Close()
+	defer server.Close() // server close will close all client connections
 
 	sender := MustGetNewSender(server.URL, "fake-key")
-	defer sender.Close()
 	// disconnect
 	// sender.Close()
 	payloads := []string{"1", "2", "3", "4", "5"}
