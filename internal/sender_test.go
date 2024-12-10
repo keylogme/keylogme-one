@@ -43,7 +43,7 @@ func (h serverHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func mustGetServer(p *[]string, delay time.Duration, deadline time.Duration) *httptest.Server {
+func getServer(p *[]string, delay time.Duration, deadline time.Duration) *httptest.Server {
 	sh := serverHandler{DataLog: p, Delay: delay, Deadline: deadline}
 	s := httptest.NewServer(sh)
 	return s
@@ -51,7 +51,7 @@ func mustGetServer(p *[]string, delay time.Duration, deadline time.Duration) *ht
 
 func TestSender(t *testing.T) {
 	expected := []string{}
-	server := mustGetServer(&expected, 0, 0)
+	server := getServer(&expected, 0, 0)
 
 	sender := MustGetNewSender(server.URL, "fake-key")
 	// send payload
@@ -81,7 +81,7 @@ func TestSender(t *testing.T) {
 
 func TestSenderWithDelay(t *testing.T) {
 	expected := []string{}
-	server := mustGetServer(&expected, 1*time.Second, 0)
+	server := getServer(&expected, 1*time.Second, 0)
 	defer server.Close()
 
 	sender := MustGetNewSender(server.URL, "fake-key")
@@ -103,7 +103,7 @@ func TestSenderWithDelay(t *testing.T) {
 func TestWithDeadline(t *testing.T) {
 	expected := []string{}
 	deadline := 1 * time.Second
-	server := mustGetServer(&expected, 0, deadline)
+	server := getServer(&expected, 0, deadline)
 	defer server.Close() // server close will close all client connections
 
 	sender := MustGetNewSender(server.URL, "fake-key")
@@ -133,5 +133,37 @@ func TestWithDeadline(t *testing.T) {
 		if payloads[idx] != expected[idx] {
 			t.Fatal("wrong expected value")
 		}
+	}
+}
+
+func TestServerNotAvailable(t *testing.T) {
+	expected := []string{}
+	server := getServer(&expected, 0, 0)
+	slog.Info(server.URL)
+
+	sender := MustGetNewSender(server.URL, "fake-key")
+
+	payloads := []string{"1", "2", "3", "4", "5"}
+	for idx, p := range payloads {
+		if idx == 1 {
+			server.Close()
+		}
+		slog.Info(fmt.Sprintf("sending %s\n", p))
+		err := sender.Send([]byte(p))
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+	}
+	// start server again
+	time.Sleep(5 * time.Second)
+	slog.Info("Server started again")
+	server = getServer(&expected, 0, 0)
+	slog.Info(server.URL)
+	sender.updateURL(server.URL)
+
+	time.Sleep(3 * time.Second)
+	// check results
+	if len(payloads) != len(expected) {
+		t.Fatalf("expected same len : %#v vs %#v\n", payloads, expected)
 	}
 }
