@@ -37,3 +37,17 @@ func getPayload(typePayload TypePayload, data any) ([]byte, error) {
 	}
 	return pb, nil
 }
+
+// Payload to logger
+
+type TypePayloadLogger string
+
+const (
+	ShortcutPayloadLogger TypePayloadLogger = "sc"
+)
+
+type PayloadLogger struct {
+	Version int               `json:"version"`
+	Type    TypePayloadLogger `json:"type"`
+	Data    json.RawMessage   `json:"data"`
+}

