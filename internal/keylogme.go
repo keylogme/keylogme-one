@@ -26,10 +26,10 @@ func (ks *KeylogMeStorage) SaveKeylog(deviceId string, keycode uint16) error {
 	return ks.sender.Send(payloadBytes)
 }
 
-func (ks *KeylogMeStorage) SaveShortcut(deviceId string, shortcutId int64) error {
+func (ks *KeylogMeStorage) SaveShortcut(deviceId, shortcutId string) error {
 	start := time.Now()
 	defer func() {
-		slog.Info(fmt.Sprintf("| %s | Shortcut %d\n", time.Since(start), shortcutId))
+		slog.Info(fmt.Sprintf("| %s | Shortcut %s\n", time.Since(start), shortcutId))
 	}()
 	pb, err := getPayload(
 		ShortcutPayload,

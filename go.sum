@@ -1,6 +1,4 @@
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/keylogme/zero-trust-logger v0.0.0-20241106194228-04a24031b34d h1:ejRyvSSROxbwLSgYzDgxZg9fRBuQCZrim+a0LuN33DQ=
-github.com/keylogme/zero-trust-logger v0.0.0-20241106194228-04a24031b34d/go.mod h1:UGcam0aeDN+/78PUsTB0Xv2LROos5JJGrmfrwLfYCZM=
-golang.org/x/net v0.29.0 h1:5ORfpBpCs4HzDYoodCDBbwHzdR5UrLBZ3sOnUJmFoHo=
-golang.org/x/net v0.29.0/go.mod h1:gLkgy8jTGERgjzMic6DS9+SP0ajcu6Xu3Orq/SpETg0=
+github.com/keylogme/keylogme-zero v1.5.2 h1:l3VNsF2Ts5wRDgcXM6KtI2UgPqmMg+ERMiKDFpx1qcg=
+github.com/keylogme/keylogme-zero v1.5.2/go.mod h1:9OPIt5ZHJnIxzbL5OizVz7kZNVt/e+SugfINmNTvYy0=

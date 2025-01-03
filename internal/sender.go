@@ -28,7 +28,7 @@ type Sender struct {
 	url_ws          string
 	apikey          string
 	ws              *websocket.Conn
-	reader          chan bool
+	reader          chan PayloadLogger
 	writer          chan []byte
 	done            chan struct{}
 	mu              sync.Mutex
@@ -49,7 +49,7 @@ func MustGetNewSender(origin, apikey string) *Sender {
 		url_ws:          url_ws,
 		apikey:          apikey,
 		ws:              nil,
-		reader:          make(chan bool),
+		reader:          make(chan PayloadLogger),
 		writer: make(
 			chan []byte,
 			100,
@@ -118,10 +118,10 @@ func (s *Sender) handleReconnects() {
 		if err != nil {
 			slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
 		}
+		slog.Info(fmt.Sprintf("Reconnecting %s ...\n", s.url_ws))
 	}
 	// TODO: make durations configurable
 	time.Sleep(1 * time.Second)
-	slog.Info(fmt.Sprintf("Reconnecting %s ...\n", s.url_ws))
 	s.handleReconnects()
 }
 
@@ -189,6 +189,7 @@ func (s *Sender) read() {
 			slog.Info("failed to parse payload")
 			continue
 		}
+		s.reader <- payload
 	}
 }
 

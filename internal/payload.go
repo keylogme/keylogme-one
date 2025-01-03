@@ -22,7 +22,7 @@ type KeylogPayloadV1 struct {
 
 type ShortcutPayloadV1 struct {
 	KeyboardDeviceId string `json:"kID"`
-	ShortcutId       int64  `json:"scID"`
+	ShortcutId       string `json:"scID"`
 }
 
 func getPayload(typePayload TypePayload, data any) ([]byte, error) {
