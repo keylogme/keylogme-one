@@ -2,30 +2,46 @@ package internal
 
 import "encoding/json"
 
+// Payload to keylogme.com
+
 type TypePayload string
 
 const (
-	KeyLogPayload   TypePayload = "kl"
-	ShortcutPayload TypePayload = "sc"
+	TypePayloadKeylog     TypePayload = "kl"
+	TypePayloadShortcut   TypePayload = "sc"
+	TypePayladLayerChange TypePayload = "lc"
+	TypePayloadShiftState TypePayload = "ss"
 )
 
 type Payload struct {
 	Version int             `json:"version"`
 	Type    TypePayload     `json:"type"`
-	Data    json.RawMessage `json:"data"` // why not json.RawMessage?
+	Data    json.RawMessage `json:"data"`
 }
 
-type KeylogPayloadV1 struct {
+type KeylogPayload struct {
 	KeyboardDeviceId string `json:"kID"`
 	Code             uint16 `json:"c"`
 }
 
-type ShortcutPayloadV1 struct {
+type ShortcutPayload struct {
 	KeyboardDeviceId string `json:"kID"`
 	ShortcutId       string `json:"scID"`
 }
 
-func getPayload(typePayload TypePayload, data any) ([]byte, error) {
+type LayerChangePayload struct {
+	KeyboardDeviceId string `json:"kID"`
+	LayerId          int64  `json:"lID"`
+}
+
+type ShiftStatePayload struct {
+	KeyboardDeviceId string `json:"kID"`
+	Modifier         uint16 `json:"m"`
+	Code             uint16 `json:"c"`
+	Auto             bool   `json:"a"`
+}
+
+func GetPayload(typePayload TypePayload, data any) ([]byte, error) {
 	db, err := json.Marshal(data)
 	if err != nil {
 		return []byte{}, err
@@ -43,7 +59,7 @@ func getPayload(typePayload TypePayload, data any) ([]byte, error) {
 type TypePayloadLogger string
 
 const (
-	ShortcutPayloadLogger TypePayloadLogger = "sc"
+	TypePayloadLoggerShortcut TypePayloadLogger = "sc"
 )
 
 type PayloadLogger struct {

@@ -1,9 +1,7 @@
 package internal
 
 import (
-	"fmt"
-	"log/slog"
-	"time"
+	k1 "github.com/keylogme/keylogme-one"
 )
 
 type KeylogMeStorage struct {
@@ -16,24 +14,47 @@ func MustGetNewKeylogMeStorage(origin, apiKey string) *KeylogMeStorage {
 }
 
 func (ks *KeylogMeStorage) SaveKeylog(deviceId string, keycode uint16) error {
-	payloadBytes, err := getPayload(
-		KeyLogPayload,
-		KeylogPayloadV1{KeyboardDeviceId: deviceId, Code: keycode},
+	pb, err := k1.GetPayload(
+		k1.TypePayloadKeylog,
+		k1.KeylogPayload{KeyboardDeviceId: deviceId, Code: keycode},
 	)
 	if err != nil {
 		return err
 	}
-	return ks.sender.Send(payloadBytes)
+	return ks.sender.Send(pb)
 }
 
 func (ks *KeylogMeStorage) SaveShortcut(deviceId, shortcutId string) error {
-	start := time.Now()
-	defer func() {
-		slog.Info(fmt.Sprintf("| %s | Shortcut %s\n", time.Since(start), shortcutId))
-	}()
-	pb, err := getPayload(
-		ShortcutPayload,
-		ShortcutPayloadV1{KeyboardDeviceId: deviceId, ShortcutId: shortcutId},
+	pb, err := k1.GetPayload(
+		k1.TypePayloadShortcut,
+		k1.ShortcutPayload{KeyboardDeviceId: deviceId, ShortcutId: shortcutId},
+	)
+	if err != nil {
+		return err
+	}
+	return ks.sender.Send(pb)
+}
+
+func (ks *KeylogMeStorage) SaveLayerChange(deviceId string, layerId int64) error {
+	pb, err := k1.GetPayload(
+		k1.TypePayladLayerChange,
+		k1.LayerChangePayload{KeyboardDeviceId: deviceId, LayerId: layerId},
+	)
+	if err != nil {
+		return err
+	}
+	return ks.sender.Send(pb)
+}
+
+func (ks *KeylogMeStorage) SaveShiftState(deviceId string, modifier, code uint16, auto bool) error {
+	pb, err := k1.GetPayload(
+		k1.TypePayloadShiftState,
+		k1.ShiftStatePayload{
+			KeyboardDeviceId: deviceId,
+			Modifier:         modifier,
+			Code:             code,
+			Auto:             auto,
+		},
 	)
 	if err != nil {
 		return err

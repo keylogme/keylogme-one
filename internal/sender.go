@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	k1 "github.com/keylogme/keylogme-one"
 )
 
 const (
@@ -28,7 +30,7 @@ type Sender struct {
 	url_ws          string
 	apikey          string
 	ws              *websocket.Conn
-	reader          chan PayloadLogger
+	reader          chan k1.PayloadLogger
 	writer          chan []byte
 	done            chan struct{}
 	mu              sync.Mutex
@@ -49,7 +51,7 @@ func MustGetNewSender(origin, apikey string) *Sender {
 		url_ws:          url_ws,
 		apikey:          apikey,
 		ws:              nil,
-		reader:          make(chan PayloadLogger),
+		reader:          make(chan k1.PayloadLogger),
 		writer: make(
 			chan []byte,
 			100,
@@ -183,7 +185,7 @@ func (s *Sender) read() {
 		}
 		slog.Info(fmt.Sprintf("received message: %s", msg))
 
-		var payload PayloadLogger
+		var payload k1.PayloadLogger
 		err = json.Unmarshal(msg, &payload)
 		if err != nil {
 			slog.Info("failed to parse payload")

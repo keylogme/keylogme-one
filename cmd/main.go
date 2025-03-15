@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/keylogme/keylogme-zero/keylog"
+	k0 "github.com/keylogme/keylogme-zero"
 
 	"github.com/keylogme/keylogme-one/internal"
 )
@@ -30,11 +30,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var config keylog.Config
+	var config k0.Config
 	err = json.NewDecoder(res.Body).Decode(&config)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// FIXME: check no duplicates of usb names of devices
 	fmt.Println("Config:")
 	fmt.Printf("Devices %+v\n", config.Devices)
 	fmt.Println("Shortcut groups:")
@@ -50,16 +51,20 @@ func main() {
 	storage := internal.MustGetNewKeylogMeStorage(ORIGIN_ENDPOINT, APIKEY)
 	defer storage.Close()
 
-	chEvt := make(chan keylog.DeviceEvent)
-	devices := []keylog.Device{}
+	chEvt := make(chan k0.DeviceEvent)
+	devices := []k0.Device{}
 	for _, dev := range config.Devices {
-		d := keylog.GetDevice(ctx, dev, chEvt)
+		d := k0.GetDevice(ctx, dev, chEvt)
 		devices = append(devices, *d)
 	}
 
-	sd := keylog.MustGetNewShortcutsDetector(config.ShortcutGroups)
+	sd := k0.MustGetNewShortcutsDetector(config.ShortcutGroups)
 
-	keylog.Start(chEvt, &devices, sd, storage)
+	ss := k0.NewShiftStateDetector(config.ShiftState)
+
+	ld := k0.NewLayerDetector(config.Layers, config.ShiftState)
+
+	k0.Start(chEvt, &devices, sd, ss, ld, storage)
 
 	// Graceful shutdown
 	ctxInt, stop := signal.NotifyContext(context.Background(), os.Interrupt)
