@@ -48,7 +48,7 @@ func main() {
 	//****************************************************
 	ctx, cancel := context.WithCancel(context.Background())
 
-	storage := internal.MustGetNewKeylogMeStorage(ORIGIN_ENDPOINT, APIKEY)
+	storage := internal.MustGetNewKeylogMeStorage(ctx, ORIGIN_ENDPOINT, APIKEY)
 	defer storage.Close()
 
 	chEvt := make(chan k0.DeviceEvent)
@@ -69,8 +69,7 @@ func main() {
 	// Graceful shutdown
 	ctxInt, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	// Wait for interrupt signal to gracefully shutdown the server with a timeout of 10 seconds.
-	<-ctxInt.Done()
+	<-ctxInt.Done() // blocks until process is interrupted
 	cancel()
 
 	fmt.Println("Logger closed.")

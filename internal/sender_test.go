@@ -38,7 +38,7 @@ func (h serverHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(h.Delay)
 		}
 		if h.Deadline != 0 {
-			c.SetReadDeadline(time.Now().Add(h.Deadline))
+			_ = c.SetReadDeadline(time.Now().Add(h.Deadline))
 		}
 	}
 }
@@ -111,7 +111,7 @@ func TestWithDeadline(t *testing.T) {
 	// sender.Close()
 	payloads := []string{"1", "2", "3", "4", "5"}
 	slog.Info("sending 1")
-	sender.Send([]byte("1"))
+	_ = sender.Send([]byte("1"))
 	slog.Info("waiting X seconds so server disconnects ws...")
 	time.Sleep(2 * deadline)
 
@@ -159,7 +159,10 @@ func TestServerNotAvailable(t *testing.T) {
 	slog.Info("Server started again")
 	server = getServer(&expected, 0, 0)
 	slog.Info(server.URL)
-	sender.updateURL(server.URL)
+	err := sender.updateURL(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	time.Sleep(3 * time.Second)
 	// check results

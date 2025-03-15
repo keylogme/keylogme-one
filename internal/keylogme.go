@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"context"
+
 	k1 "github.com/keylogme/keylogme-one"
 )
 
@@ -8,8 +10,8 @@ type KeylogMeStorage struct {
 	sender *Sender
 }
 
-func MustGetNewKeylogMeStorage(origin, apiKey string) *KeylogMeStorage {
-	sender := MustGetNewSender(origin, apiKey)
+func MustGetNewKeylogMeStorage(ctx context.Context, origin, apiKey string) *KeylogMeStorage {
+	sender := MustGetNewSender(ctx, origin, apiKey)
 	return &KeylogMeStorage{sender: sender}
 }
 

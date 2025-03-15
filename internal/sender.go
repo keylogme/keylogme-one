@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,21 +23,21 @@ const (
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	// maxMessageSize = 512
 )
 
 type Sender struct {
+	ctx             context.Context
 	origin_endpoint string
 	url_ws          string
 	apikey          string
 	ws              *websocket.Conn
 	reader          chan k1.PayloadLogger
 	writer          chan []byte
-	done            chan struct{}
 	mu              sync.Mutex
 }
 
-func MustGetNewSender(origin, apikey string) *Sender {
+func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 	if origin == "" {
 		log.Fatal("Origin endpoint is empty string")
 	}
@@ -47,6 +48,7 @@ func MustGetNewSender(origin, apikey string) *Sender {
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
 	s := &Sender{
+		ctx:             ctx,
 		origin_endpoint: origin,
 		url_ws:          url_ws,
 		apikey:          apikey,
@@ -56,21 +58,20 @@ func MustGetNewSender(origin, apikey string) *Sender {
 			chan []byte,
 			100,
 		), // buffered channel to store payloads when there is no connection
-		done: nil,
-		mu:   sync.Mutex{},
+		mu: sync.Mutex{},
 	}
-	go s.handleReconnects()
+	go s.proccessMessageQueue()
 	return s
 }
 
-func (s *Sender) updateURL(url string) {
+func (s *Sender) updateURL(url string) error {
 	trimmedOrigin := strings.TrimPrefix(url, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, s.apikey)
 	s.origin_endpoint = url
 	s.url_ws = url_ws
 
 	s.closeWS()
-	s.connectWS()
+	return s.connectWS()
 }
 
 func (s *Sender) closeWS() {
@@ -98,33 +99,54 @@ func (s *Sender) connectWS() error {
 }
 
 func (s *Sender) run() error {
-	if err := s.connectWS(); err != nil {
-		return err
-	}
-	defer s.closeWS()
 	//
-	s.done = make(chan struct{})
 	go s.read()
 	s.write()
 	slog.Info("Client end of connection")
 	return nil
 }
 
+func (s *Sender) proccessMessageQueue() {
+	for {
+		if len(s.writer) > 0 {
+			s.handleReconnects()
+		}
+		time.Sleep(1 * time.Second) // avoid cpu spinning
+	}
+}
+
 func (s *Sender) handleReconnects() {
 	s.closeWS()
-	// reconnect if there are payloads in queue to send
-	if len(s.writer) > 0 {
-		// blocking call to start reading keylogger
-		slog.Info(fmt.Sprintf("Connecting ws with queue %d\n", len(s.writer)))
-		err := s.run()
-		if err != nil {
-			slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
+	if err := s.connectWS(); err != nil {
+		waiTime := 1 * time.Second
+		select {
+		case <-time.After(waiTime):
+			break
+		case <-s.ctx.Done():
+			slog.Info("Stopping handleReconnects")
+			return
 		}
-		slog.Info(fmt.Sprintf("Reconnecting %s ...\n", s.url_ws))
 	}
-	// TODO: make durations configurable
-	time.Sleep(1 * time.Second)
-	s.handleReconnects()
+	defer s.closeWS()
+	err := s.run()
+	if err != nil {
+		slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
+	}
+
+	// s.closeWS()
+	// // reconnect if there are payloads in queue to send
+	// if len(s.writer) > 0 {
+	// 	// blocking call to start reading keylogger
+	// 	slog.Info(fmt.Sprintf("Connecting ws with queue %d\n", len(s.writer)))
+	// 	err := s.run()
+	// 	if err != nil {
+	// 		slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
+	// 	}
+	// 	slog.Info(fmt.Sprintf("Reconnecting %s ...\n", s.url_ws))
+	// }
+	// // TODO: make durations configurable
+	// time.Sleep(1 * time.Second)
+	// s.handleReconnects()
 }
 
 func (s *Sender) write() {
@@ -133,7 +155,7 @@ func (s *Sender) write() {
 
 	for {
 		select {
-		case _, ok := <-s.done:
+		case _, ok := <-s.ctx.Done():
 			if !ok {
 				slog.Info("Done signal received")
 				return
@@ -155,9 +177,12 @@ func (s *Sender) write() {
 				return
 			}
 		case <-ticker.C:
-			s.ws.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := s.ws.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				slog.Error(fmt.Sprintf("Could no set write deadline. %s\n", err.Error()))
+				return
+			}
 			if err := s.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
-				fmt.Printf("Disconnecting logger\n")
+				slog.Error(fmt.Sprintf("Could no set ping message. %s\n", err.Error()))
 				return
 			}
 		}
@@ -165,10 +190,12 @@ func (s *Sender) write() {
 }
 
 func (s *Sender) read() {
-	defer close(s.done)
-	s.ws.SetReadDeadline(time.Now().Add(pongWait))
+	if err := s.ws.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		slog.Error(fmt.Sprintf("Could not set read deadline: %s\n", err.Error()))
+		return
+	}
 	s.ws.SetPongHandler(
-		func(string) error { s.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil },
+		func(string) error { _ = s.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil },
 	)
 	for {
 		_, msg, err := s.ws.ReadMessage()
