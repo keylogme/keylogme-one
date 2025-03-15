@@ -7,10 +7,10 @@ import "encoding/json"
 type TypePayload string
 
 const (
-	TypePayloadKeylog     TypePayload = "kl"
-	TypePayloadShortcut   TypePayload = "sc"
-	TypePayladLayerChange TypePayload = "lc"
-	TypePayloadShiftState TypePayload = "ss"
+	TypePayloadKeylog      TypePayload = "kl"
+	TypePayloadShortcut    TypePayload = "sc"
+	TypePayloadLayerChange TypePayload = "lc"
+	TypePayloadShiftState  TypePayload = "ss"
 )
 
 type Payload struct {

@@ -39,7 +39,7 @@ func (ks *KeylogMeStorage) SaveShortcut(deviceId, shortcutId string) error {
 
 func (ks *KeylogMeStorage) SaveLayerChange(deviceId string, layerId int64) error {
 	pb, err := k1.GetPayload(
-		k1.TypePayladLayerChange,
+		k1.TypePayloadLayerChange,
 		k1.LayerChangePayload{KeyboardDeviceId: deviceId, LayerId: layerId},
 	)
 	if err != nil {
