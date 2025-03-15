@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -53,7 +54,7 @@ func TestSender(t *testing.T) {
 	expected := []string{}
 	server := getServer(&expected, 0, 0)
 
-	sender := MustGetNewSender(server.URL, "fake-key")
+	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
 	// send payload
 	payloads := []string{"1", "2", "3", "4", "5"}
 	for _, p := range payloads {
@@ -84,7 +85,7 @@ func TestSenderWithDelay(t *testing.T) {
 	server := getServer(&expected, 1*time.Second, 0)
 	defer server.Close()
 
-	sender := MustGetNewSender(server.URL, "fake-key")
+	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
 	// defer sender.Close()
 	// send payload
 	// server.CloseClientConnections()
@@ -106,7 +107,7 @@ func TestWithDeadline(t *testing.T) {
 	server := getServer(&expected, 0, deadline)
 	defer server.Close() // server close will close all client connections
 
-	sender := MustGetNewSender(server.URL, "fake-key")
+	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
 	// disconnect
 	// sender.Close()
 	payloads := []string{"1", "2", "3", "4", "5"}
@@ -141,7 +142,7 @@ func TestServerNotAvailable(t *testing.T) {
 	server := getServer(&expected, 0, 0)
 	slog.Info(server.URL)
 
-	sender := MustGetNewSender(server.URL, "fake-key")
+	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
 
 	payloads := []string{"1", "2", "3", "4", "5"}
 	for idx, p := range payloads {
