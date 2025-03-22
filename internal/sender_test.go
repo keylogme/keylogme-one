@@ -3,10 +3,10 @@ package internal
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 
@@ -23,14 +23,24 @@ type serverHandler struct {
 func (h serverHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		slog.Error(fmt.Sprintf("upgrade: %s\n", err.Error()))
 		return
 	}
 	defer c.Close()
+	// c.Set
+	// c.SetCloseHandler(func(code int, text string) error {
+	// 	log.Println("-----close:", code, text)
+	// 	return nil
+	// })
+
+	c.SetCloseHandler(func(code int, text string) error {
+		slog.Info(fmt.Sprintf("WebSocket closed: Code=%d, Reason=%s", code, text))
+		return nil
+	})
 	for {
 		mt, message, err := c.ReadMessage()
 		if err != nil {
-			log.Println("read:", err)
+			slog.Error(fmt.Sprintf("read: %s\n", err.Error()))
 			break
 		}
 		fmt.Printf("server test: %d %s\n", mt, string(message))
@@ -102,19 +112,22 @@ func TestSenderWithDelay(t *testing.T) {
 }
 
 func TestWithDeadline(t *testing.T) {
+	t.Parallel()
+	before := runtime.NumGoroutine()
+	defer checkGoroutineLeak(t, before)
+
 	expected := []string{}
-	deadline := 1 * time.Second
+	deadline := 2 * reconnectWait
 	server := getServer(&expected, 0, deadline)
 	defer server.Close() // server close will close all client connections
 
 	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
-	// disconnect
-	// sender.Close()
+	defer sender.Close()
 	payloads := []string{"1", "2", "3", "4", "5"}
 	slog.Info("sending 1")
 	_ = sender.Send([]byte("1"))
 	slog.Info("waiting X seconds so server disconnects ws...")
-	time.Sleep(2 * deadline)
+	time.Sleep(3 * reconnectWait)
 
 	for _, p := range []string{"2", "3", "4", "5"} {
 		slog.Info(fmt.Sprintf("sending %s\n", p))
@@ -169,5 +182,14 @@ func TestServerNotAvailable(t *testing.T) {
 	// check results
 	if len(payloads) != len(expected) {
 		t.Fatalf("expected same len : %#v vs %#v\n", payloads, expected)
+	}
+}
+
+func checkGoroutineLeak(t *testing.T, before int) {
+	time.Sleep(2 * time.Second)
+	after := runtime.NumGoroutine()
+	if after > before {
+		slog.Error(fmt.Sprintf("Goroutines leak. Before: %d, After: %d", before, after))
+		t.Fatalf("Goroutines leak. Before: %d, After: %d", before, after)
 	}
 }

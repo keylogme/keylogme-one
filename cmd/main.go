@@ -30,10 +30,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// print body as str
 	var config k0.Config
 	err = json.NewDecoder(res.Body).Decode(&config)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error decoding config: %v", err)
 	}
 	// FIXME: check no duplicates of usb names of devices
 	fmt.Println("Config:")
@@ -74,8 +75,3 @@ func main() {
 
 	fmt.Println("Logger closed.")
 }
-
-// func timeTrack(start time.Time, name string) {
-// 	elapsed := time.Since(start)
-// 	log.Printf("%s took %s", name, elapsed)
-// }

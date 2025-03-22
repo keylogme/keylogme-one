@@ -24,10 +24,13 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 	// Maximum message size allowed from peer.
 	// maxMessageSize = 512
+	//
+	reconnectWait = 1 * time.Second
 )
 
 type Sender struct {
 	ctx             context.Context
+	cancel          context.CancelFunc
 	origin_endpoint string
 	url_ws          string
 	apikey          string
@@ -47,8 +50,10 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
+	ctxSender, cancelSender := context.WithCancel(ctx)
 	s := &Sender{
-		ctx:             ctx,
+		ctx:             ctxSender,
+		cancel:          cancelSender,
 		origin_endpoint: origin,
 		url_ws:          url_ws,
 		apikey:          apikey,
@@ -60,7 +65,7 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 		), // buffered channel to store payloads when there is no connection
 		mu: sync.Mutex{},
 	}
-	go s.proccessMessageQueue()
+	go s.processMessageQueue()
 	return s
 }
 
@@ -99,67 +104,57 @@ func (s *Sender) connectWS() error {
 }
 
 func (s *Sender) run() error {
-	//
-	go s.read()
-	s.write()
-	slog.Info("Client end of connection")
+	if s.ws == nil {
+		return fmt.Errorf("ws is nil")
+	}
+	closeChan := make(chan struct{})
+
+	go s.read(closeChan)
+	go s.write(closeChan) // this is a blocking call
+
+	<-closeChan
 	return nil
 }
 
-func (s *Sender) proccessMessageQueue() {
+func (s *Sender) processMessageQueue() {
 	for {
 		if len(s.writer) > 0 {
 			s.handleReconnects()
 		}
-		time.Sleep(1 * time.Second) // avoid cpu spinning
+		select {
+		case <-time.After(reconnectWait):
+			continue
+		case <-s.ctx.Done():
+			slog.Info("Stopping sender")
+			return
+		}
 	}
 }
 
 func (s *Sender) handleReconnects() {
-	s.closeWS()
-	if err := s.connectWS(); err != nil {
-		waiTime := 1 * time.Second
-		select {
-		case <-time.After(waiTime):
-			break
-		case <-s.ctx.Done():
-			slog.Info("Stopping handleReconnects")
-			return
-		}
-	}
+	slog.Info("Sender reconnecting...")
 	defer s.closeWS()
+	if err := s.connectWS(); err != nil {
+		slog.Info(fmt.Sprintf("Could not connect to ws: %s\n", err.Error()))
+		return
+	}
 	err := s.run()
 	if err != nil {
 		slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
 	}
-
-	// s.closeWS()
-	// // reconnect if there are payloads in queue to send
-	// if len(s.writer) > 0 {
-	// 	// blocking call to start reading keylogger
-	// 	slog.Info(fmt.Sprintf("Connecting ws with queue %d\n", len(s.writer)))
-	// 	err := s.run()
-	// 	if err != nil {
-	// 		slog.Info(fmt.Sprintf("Run error : %s\n", err.Error()))
-	// 	}
-	// 	slog.Info(fmt.Sprintf("Reconnecting %s ...\n", s.url_ws))
-	// }
-	// // TODO: make durations configurable
-	// time.Sleep(1 * time.Second)
-	// s.handleReconnects()
 }
 
-func (s *Sender) write() {
+func (s *Sender) write(closeConn chan struct{}) {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
+	defer func() {
+		slog.Debug("------------------Closing write------------------")
+	}()
 
 	for {
 		select {
-		case _, ok := <-s.ctx.Done():
-			if !ok {
-				slog.Info("Done signal received")
-				return
-			}
+		case <-s.ctx.Done():
+			return
 		case p, ok := <-s.writer:
 			if !ok {
 				return
@@ -185,11 +180,17 @@ func (s *Sender) write() {
 				slog.Error(fmt.Sprintf("Could no set ping message. %s\n", err.Error()))
 				return
 			}
+		case <-closeConn:
+			return
 		}
 	}
 }
 
-func (s *Sender) read() {
+func (s *Sender) read(closeConn chan struct{}) {
+	defer close(closeConn)
+	defer func() {
+		slog.Debug("------------------Closing read------------------")
+	}()
 	if err := s.ws.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 		slog.Error(fmt.Sprintf("Could not set read deadline: %s\n", err.Error()))
 		return
@@ -228,6 +229,8 @@ func (s *Sender) Send(p []byte) error {
 }
 
 func (s *Sender) Close() error {
+	slog.Info("💤 Close sender")
+	s.cancel() // to exit goroutines
 	close(s.reader)
 	close(s.writer)
 	s.closeWS()
