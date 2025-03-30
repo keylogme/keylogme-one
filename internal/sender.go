@@ -82,7 +82,7 @@ func (s *Sender) closeWS() {
 	defer s.mu.Unlock()
 	if s.ws != nil {
 		slog.Info("Closing ws connection")
-		s.ws.WriteMessage(
+		_ = s.ws.WriteMessage(
 			websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
 		)
