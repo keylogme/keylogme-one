@@ -21,6 +21,7 @@ type Payload struct {
 
 type KeylogPayload struct {
 	KeyboardDeviceId string `json:"kID"`
+	LayerId          int64  `json:"lID"`
 	Code             uint16 `json:"c"`
 }
 

@@ -15,10 +15,10 @@ func MustGetNewKeylogMeStorage(ctx context.Context, origin, apiKey string) *Keyl
 	return &KeylogMeStorage{sender: sender}
 }
 
-func (ks *KeylogMeStorage) SaveKeylog(deviceId string, keycode uint16) error {
+func (ks *KeylogMeStorage) SaveKeylog(deviceId string, layerId int64, keycode uint16) error {
 	pb, err := k1.GetPayload(
 		k1.TypePayloadKeylog,
-		k1.KeylogPayload{KeyboardDeviceId: deviceId, Code: keycode},
+		k1.KeylogPayload{KeyboardDeviceId: deviceId, LayerId: layerId, Code: keycode},
 	)
 	if err != nil {
 		return err
@@ -62,8 +62,4 @@ func (ks *KeylogMeStorage) SaveShiftState(deviceId string, modifier, code uint16
 		return err
 	}
 	return ks.sender.Send(pb)
-}
-
-func (ks *KeylogMeStorage) Close() error {
-	return ks.sender.Close()
 }
