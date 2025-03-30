@@ -1,4 +1,4 @@
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
-github.com/keylogme/keylogme-zero v1.12.2 h1:mlSWdRex0JCvGuzyRq2LZd8907kCeIntGVG+fMGkBU0=
-github.com/keylogme/keylogme-zero v1.12.2/go.mod h1:dByZav9mP6p5Pftwg29LFbb45yGaIKFEifQOOSx12e0=
+github.com/keylogme/keylogme-zero v1.13.0 h1:UcDz+a6tXmEgyc3pQsSTmeU1vOTO2J22HYPi0pKWJds=
+github.com/keylogme/keylogme-zero v1.13.0/go.mod h1:dByZav9mP6p5Pftwg29LFbb45yGaIKFEifQOOSx12e0=

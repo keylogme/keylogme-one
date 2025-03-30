@@ -30,7 +30,6 @@ const (
 
 type Sender struct {
 	ctx             context.Context
-	cancel          context.CancelFunc
 	origin_endpoint string
 	url_ws          string
 	apikey          string
@@ -50,10 +49,8 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
-	ctxSender, cancelSender := context.WithCancel(ctx)
 	s := &Sender{
-		ctx:             ctxSender,
-		cancel:          cancelSender,
+		ctx:             ctx,
 		origin_endpoint: origin,
 		url_ws:          url_ws,
 		apikey:          apikey,
@@ -65,6 +62,7 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 		), // buffered channel to store payloads when there is no connection
 		mu: sync.Mutex{},
 	}
+	context.AfterFunc(ctx, s.Close)
 	go s.processMessageQueue()
 	return s
 }
@@ -83,6 +81,11 @@ func (s *Sender) closeWS() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.ws != nil {
+		slog.Info("Closing ws connection")
+		s.ws.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+		)
 		s.ws.Close()
 	}
 	s.ws = nil
@@ -110,7 +113,7 @@ func (s *Sender) run() error {
 	closeChan := make(chan struct{})
 
 	go s.read(closeChan)
-	go s.write(closeChan) // this is a blocking call
+	go s.write(closeChan)
 
 	<-closeChan
 	return nil
@@ -148,11 +151,13 @@ func (s *Sender) write(closeConn chan struct{}) {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	defer func() {
-		slog.Debug("------------------Closing write------------------")
+		slog.Info("------------------Closing write------------------")
 	}()
 
 	for {
 		select {
+		case <-closeConn:
+			return
 		case <-s.ctx.Done():
 			return
 		case p, ok := <-s.writer:
@@ -180,8 +185,6 @@ func (s *Sender) write(closeConn chan struct{}) {
 				slog.Error(fmt.Sprintf("Could no set ping message. %s\n", err.Error()))
 				return
 			}
-		case <-closeConn:
-			return
 		}
 	}
 }
@@ -189,7 +192,7 @@ func (s *Sender) write(closeConn chan struct{}) {
 func (s *Sender) read(closeConn chan struct{}) {
 	defer close(closeConn)
 	defer func() {
-		slog.Debug("------------------Closing read------------------")
+		slog.Info("------------------Closing read------------------")
 	}()
 	if err := s.ws.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 		slog.Error(fmt.Sprintf("Could not set read deadline: %s\n", err.Error()))
@@ -199,6 +202,10 @@ func (s *Sender) read(closeConn chan struct{}) {
 		func(string) error { _ = s.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil },
 	)
 	for {
+		if s.ws == nil {
+			slog.Info("reader: ws is closed")
+			return
+		}
 		_, msg, err := s.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(
@@ -228,11 +235,9 @@ func (s *Sender) Send(p []byte) error {
 	return nil
 }
 
-func (s *Sender) Close() error {
+func (s *Sender) Close() {
 	slog.Info("💤 Close sender")
-	s.cancel() // to exit goroutines
 	close(s.reader)
 	close(s.writer)
 	s.closeWS()
-	return nil
 }

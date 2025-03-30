@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
 	k0 "github.com/keylogme/keylogme-zero"
 
@@ -38,6 +39,7 @@ func main() {
 	}
 	// FIXME: check no duplicates of usb names of devices
 	fmt.Println("Config:")
+	fmt.Printf("%+v\n", config)
 	fmt.Printf("Devices %+v\n", config.Devices)
 	fmt.Println("Shortcut groups:")
 	for _, sg := range config.ShortcutGroups {
@@ -50,7 +52,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	storage := internal.MustGetNewKeylogMeStorage(ctx, ORIGIN_ENDPOINT, APIKEY)
-	defer storage.Close()
 
 	chEvt := make(chan k0.DeviceEvent)
 	devices := []k0.Device{}
@@ -72,6 +73,6 @@ func main() {
 	defer stop()
 	<-ctxInt.Done() // blocks until process is interrupted
 	cancel()
-
+	time.Sleep(2 * time.Second) // graceful wait
 	fmt.Println("Logger closed.")
 }
