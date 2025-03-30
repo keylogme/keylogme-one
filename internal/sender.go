@@ -30,6 +30,7 @@ const (
 
 type Sender struct {
 	ctx             context.Context
+	cancel          context.CancelFunc
 	origin_endpoint string
 	url_ws          string
 	apikey          string
@@ -49,8 +50,10 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
+	ctx_sender, cancel_sender := context.WithCancel(ctx)
 	s := &Sender{
-		ctx:             ctx,
+		ctx:             ctx_sender,
+		cancel:          cancel_sender,
 		origin_endpoint: origin,
 		url_ws:          url_ws,
 		apikey:          apikey,
@@ -237,6 +240,7 @@ func (s *Sender) Send(p []byte) error {
 
 func (s *Sender) Close() {
 	slog.Info("💤 Close sender")
+	s.cancel()
 	close(s.reader)
 	close(s.writer)
 	s.closeWS()
