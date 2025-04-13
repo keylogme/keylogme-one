@@ -39,8 +39,10 @@ func main() {
 	}
 	// FIXME: check no duplicates of usb names of devices
 	fmt.Println("Config:")
-	fmt.Printf("%+v\n", config)
-	fmt.Printf("Devices %+v\n", config.Devices)
+	fmt.Println("Devices:")
+	for _, d := range config.Devices {
+		fmt.Printf("%+v\n", d)
+	}
 	fmt.Println("Shortcut groups:")
 	for _, sg := range config.ShortcutGroups {
 		fmt.Printf("  %s %s :\n", sg.Id, sg.Name)
@@ -64,7 +66,7 @@ func main() {
 
 	ss := k0.NewShiftStateDetector(config.ShiftState)
 
-	ld := k0.NewLayerDetector(config.Layers, config.ShiftState)
+	ld := k0.NewLayerDetector(config.Devices, config.ShiftState)
 
 	k0.Start(chEvt, &devices, sd, ss, ld, storage)
 
