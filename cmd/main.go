@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -75,6 +76,6 @@ func main() {
 	defer stop()
 	<-ctxInt.Done() // blocks until process is interrupted
 	cancel()
-	time.Sleep(2 * time.Second) // graceful wait
-	fmt.Println("Logger closed.")
+	time.Sleep(3 * time.Second) // graceful wait
+	slog.Info("Logger closed.")
 }
