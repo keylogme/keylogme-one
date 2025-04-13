@@ -61,10 +61,14 @@ func getServer(p *[]string, delay time.Duration, deadline time.Duration) *httpte
 }
 
 func TestSender(t *testing.T) {
+	CheckGoroutineLeaks(t, 2*time.Second)
+
 	expected := []string{}
 	server := getServer(&expected, 0, 0)
+	defer server.Close()
 
 	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
+	defer sender.Close()
 	// send payload
 	payloads := []string{"1", "2", "3", "4", "5"}
 	for _, p := range payloads {
@@ -91,12 +95,14 @@ func TestSender(t *testing.T) {
 // TODO: test with client disconnection-> goal is to check server disconnects as well
 
 func TestSenderWithDelay(t *testing.T) {
+	CheckGoroutineLeaks(t, 2*time.Second)
+
 	expected := []string{}
 	server := getServer(&expected, 1*time.Second, 0)
 	defer server.Close()
 
 	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
-	// defer sender.Close()
+	defer sender.Close()
 	// send payload
 	// server.CloseClientConnections()
 	payloads := []string{"1", "2", "3", "4", "5"}
@@ -112,16 +118,14 @@ func TestSenderWithDelay(t *testing.T) {
 }
 
 func TestWithDeadline(t *testing.T) {
-	t.Parallel()
-	before := runtime.NumGoroutine()
-	defer checkGoroutineLeak(t, before)
+	CheckGoroutineLeaks(t, 2*time.Second)
 
 	expected := []string{}
 	deadline := 2 * reconnectWait
 	server := getServer(&expected, 0, deadline)
 	defer server.Close() // server close will close all client connections
 
-	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
+	sender := MustGetNewSender(context.Background(), server.URL, "fake-key")
 	defer sender.Close()
 	payloads := []string{"1", "2", "3", "4", "5"}
 	slog.Info("sending 1")
@@ -148,14 +152,19 @@ func TestWithDeadline(t *testing.T) {
 			t.Fatal("wrong expected value")
 		}
 	}
+	slog.Info("end of test")
 }
 
 func TestServerNotAvailable(t *testing.T) {
+	CheckGoroutineLeaks(t, 2*time.Second)
+
 	expected := []string{}
 	server := getServer(&expected, 0, 0)
+	// defer server.Close()
 	slog.Info(server.URL)
 
 	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
+	defer sender.Close()
 
 	payloads := []string{"1", "2", "3", "4", "5"}
 	for idx, p := range payloads {
@@ -172,6 +181,7 @@ func TestServerNotAvailable(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	slog.Info("Server started again")
 	server = getServer(&expected, 0, 0)
+	defer server.Close()
 	slog.Info(server.URL)
 	err := sender.updateURL(server.URL)
 	if err != nil {
@@ -183,13 +193,22 @@ func TestServerNotAvailable(t *testing.T) {
 	if len(payloads) != len(expected) {
 		t.Fatalf("expected same len : %#v vs %#v\n", payloads, expected)
 	}
+	slog.Info("end of test")
 }
 
-func checkGoroutineLeak(t *testing.T, before int) {
-	time.Sleep(2 * time.Second)
-	after := runtime.NumGoroutine()
-	if after > before {
-		slog.Error(fmt.Sprintf("Goroutines leak. Before: %d, After: %d", before, after))
-		t.Fatalf("Goroutines leak. Before: %d, After: %d", before, after)
-	}
+// CheckGoroutineLeaks compares goroutine count before and after test
+func CheckGoroutineLeaks(t *testing.T, gracePeriod time.Duration) {
+	t.Helper()
+
+	before := runtime.NumGoroutine()
+
+	t.Cleanup(func() {
+		time.Sleep(gracePeriod) // give time for goroutines to exit
+		after := runtime.NumGoroutine()
+
+		if after > before {
+			slog.Info("Goroutine leak detected")
+			t.Errorf("Goroutine leak detected: before=%d, after=%d", before, after)
+		}
+	})
 }
