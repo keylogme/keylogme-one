@@ -30,7 +30,6 @@ const (
 
 type Sender struct {
 	ctx             context.Context
-	cancel          context.CancelFunc
 	mu              sync.Mutex
 	done            chan struct{}
 	wg              sync.WaitGroup
@@ -53,10 +52,8 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
 	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
-	ctx_sender, cancel_sender := context.WithCancel(ctx)
 	s := &Sender{
-		ctx:             ctx_sender,
-		cancel:          cancel_sender,
+		ctx:             ctx,
 		mu:              sync.Mutex{},
 		done:            make(chan struct{}),
 		wg:              sync.WaitGroup{},
@@ -225,7 +222,7 @@ func (s *Sender) write() {
 			if !ok {
 				return
 			}
-			slog.Info(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
+			// slog.Info(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
 			err := s.writeMessage(websocket.BinaryMessage, p)
 			if err != nil {
 				slog.Error(
