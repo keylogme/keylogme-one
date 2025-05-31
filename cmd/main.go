@@ -2,16 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	k0 "github.com/keylogme/keylogme-zero"
+	"github.com/keylogme/keylogme-zero/types"
 
 	"github.com/keylogme/keylogme-one/internal"
 )
@@ -28,16 +26,35 @@ func main() {
 
 	//****************************************************
 
-	res, err := http.Get(fmt.Sprintf("%s/config?apikey=%s", ORIGIN_ENDPOINT, APIKEY))
-	if err != nil {
-		log.Fatal(err)
-	}
+	// res, err := http.Get(fmt.Sprintf("%s/config?apikey=%s", ORIGIN_ENDPOINT, APIKEY))
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 	// print body as str
-	var config k0.Config
-	err = json.NewDecoder(res.Body).Decode(&config)
-	if err != nil {
-		log.Fatalf("Error decoding config: %v", err)
+	// var config k0.Config
+	// err = json.NewDecoder(res.Body).Decode(&config)
+	// if err != nil {
+	// 	log.Fatalf("Error decoding config: %v", err)
+	// }
+
+	config := k0.Config{
+		Devices: []k0.DeviceInput{
+			{
+				DeviceId: "1",
+				Name:     "built in",
+				Layers:   []k0.LayerInput{},
+				KeyloggerInput: types.KeyloggerInputAllOS{
+					VendorID:  types.Hex(1),
+					ProductID: types.Hex(2),
+				},
+			},
+		},
+		ShortcutGroups: []k0.ShortcutGroupInput{},
+		ShiftState: k0.ShiftStateInput{
+			ThresholdAuto: types.Duration{Duration: time.Duration(5 * time.Second)},
+		},
 	}
+
 	// FIXME: check no duplicates of usb names of devices
 	fmt.Println("Config:")
 	fmt.Println("Devices:")
@@ -62,12 +79,11 @@ func main() {
 		d := k0.GetDevice(ctx, dev, chEvt)
 		devices = append(devices, *d)
 	}
-
 	sd := k0.MustGetNewShortcutsDetector(config.ShortcutGroups)
 
 	ss := k0.NewShiftStateDetector(config.ShiftState)
 
-	ld := k0.NewLayerDetector(config.Devices, config.ShiftState)
+	ld := k0.NewLayersDetector(config.Devices, config.ShiftState)
 
 	k0.Start(chEvt, &devices, sd, ss, ld, storage)
 
