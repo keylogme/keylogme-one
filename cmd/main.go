@@ -64,10 +64,8 @@ func main() {
 	storage := internal.MustGetNewKeylogMeStorage(ctx, KEYLOGME_ENDPOINT, APIKEY)
 
 	chEvt := make(chan k0.DeviceEvent)
-	devices := []k0.Device{}
 	for _, dev := range config.Devices {
-		d := k0.GetDevice(ctx, dev, chEvt)
-		devices = append(devices, *d)
+		k0.GetDevice(ctx, dev, chEvt)
 	}
 
 	sd := k0.MustGetNewShortcutsDetector(config.ShortcutGroups)
