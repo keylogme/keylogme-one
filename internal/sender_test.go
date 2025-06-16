@@ -43,7 +43,7 @@ func (h serverHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			slog.Error(fmt.Sprintf("read: %s\n", err.Error()))
 			break
 		}
-		fmt.Printf("server test: %d %s\n", mt, string(message))
+		slog.Info(fmt.Sprintf("server test: %d %s\n", mt, string(message)))
 		*h.DataLog = append(*h.DataLog, string(message))
 		if h.Delay != 0 {
 			time.Sleep(h.Delay)
@@ -60,7 +60,7 @@ func getServer(p *[]string, delay time.Duration, deadline time.Duration) *httpte
 	return s
 }
 
-func TestSender(t *testing.T) {
+func TestSenderBasic(t *testing.T) {
 	CheckGoroutineLeaks(t, 2*time.Second)
 
 	expected := []string{}
@@ -79,10 +79,10 @@ func TestSender(t *testing.T) {
 		}
 	}
 	// wait so server process the last payload
-	time.Sleep(1 * time.Second)
+	time.Sleep(reconnectWait + 200*time.Millisecond)
 	// check results
 	if len(payloads) != len(expected) {
-		t.Fatal("expected same len")
+		t.Fatalf("expected same len %d vs %d\n", len(payloads), len(expected))
 	}
 	for idx := range payloads {
 		fmt.Printf("Sent %#v , expected %#v\n", payloads[idx], expected[idx])
@@ -90,6 +90,7 @@ func TestSender(t *testing.T) {
 			t.Fatal("wrong expected value")
 		}
 	}
+	slog.Info("end of test")
 }
 
 // TODO: test with client disconnection-> goal is to check server disconnects as well
@@ -98,7 +99,8 @@ func TestSenderWithDelay(t *testing.T) {
 	CheckGoroutineLeaks(t, 2*time.Second)
 
 	expected := []string{}
-	server := getServer(&expected, 1*time.Second, 0)
+	delay := 1 * time.Second
+	server := getServer(&expected, delay, 0)
 	defer server.Close()
 
 	sender := MustGetNewSender(context.TODO(), server.URL, "fake-key")
@@ -107,17 +109,20 @@ func TestSenderWithDelay(t *testing.T) {
 	// server.CloseClientConnections()
 	payloads := []string{"1", "2", "3", "4", "5"}
 	for _, p := range payloads {
-		fmt.Printf("sending %s\n", p)
+		slog.Info(fmt.Sprintf("sending %s\n", p))
 		err := sender.Send([]byte(p))
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 	}
-	time.Sleep(10 * time.Second)
-	fmt.Println(len(expected))
+	time.Sleep(5*delay + 200*time.Millisecond) // wait until events are proccessed
+	if len(payloads) != len(expected) {
+		t.Fatalf("expected same len %d vs %d\n", len(payloads), len(expected))
+	}
+	slog.Info("end of test")
 }
 
-func TestWithDeadline(t *testing.T) {
+func TestSenderWithDeadline(t *testing.T) {
 	CheckGoroutineLeaks(t, 2*time.Second)
 
 	expected := []string{}
@@ -131,7 +136,7 @@ func TestWithDeadline(t *testing.T) {
 	slog.Info("sending 1")
 	_ = sender.Send([]byte("1"))
 	slog.Info("waiting X seconds so server disconnects ws...")
-	time.Sleep(3 * reconnectWait)
+	time.Sleep(deadline + 200*time.Millisecond)
 
 	for _, p := range []string{"2", "3", "4", "5"} {
 		slog.Info(fmt.Sprintf("sending %s\n", p))
@@ -141,13 +146,13 @@ func TestWithDeadline(t *testing.T) {
 		}
 	}
 	// wait so server process the last payload
-	time.Sleep(1 * time.Second)
+	time.Sleep(reconnectWait + 200*time.Millisecond)
 	// check results
 	if len(payloads) != len(expected) {
 		t.Fatalf("expected same len : %#v vs %#v\n", payloads, expected)
 	}
 	for idx := range payloads {
-		fmt.Printf("Sent %#v , expected %#v\n", payloads[idx], expected[idx])
+		slog.Info(fmt.Sprintf("Sent %#v , expected %#v\n", payloads[idx], expected[idx]))
 		if payloads[idx] != expected[idx] {
 			t.Fatal("wrong expected value")
 		}
@@ -178,7 +183,7 @@ func TestServerNotAvailable(t *testing.T) {
 		}
 	}
 	// start server again
-	time.Sleep(5 * time.Second)
+	time.Sleep(reconnectWait + 200*time.Millisecond)
 	slog.Info("Server started again")
 	server = getServer(&expected, 0, 0)
 	defer server.Close()
@@ -188,7 +193,7 @@ func TestServerNotAvailable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(reconnectWait + 200*time.Millisecond)
 	// check results
 	if len(payloads) != len(expected) {
 		t.Fatalf("expected same len : %#v vs %#v\n", payloads, expected)
