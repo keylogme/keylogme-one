@@ -14,7 +14,7 @@
 
   <p align="center">
     This is the logger for <a href="https://keylogme.com">keylogme.com</a>. This logger
-    records your keypresses stats and saves them in keylogme.com. 
+    records your keypresses and saves them in keylogme.com.  See <a href="https://github.com/keylogme/keylogme-zero#security">security</a>.
     <br />
     <br />
     <a href="https://keylogme.com/esoteloferry/my-crkbd">View Demo</a>
@@ -46,12 +46,7 @@
         <li><a href="#mac">Mac</a></li>
       </ul>
     </li>
-    <li><a href="#config">Config</a>
-      <ul>
-        <li><a href="#config-linux">Linux</a></li>
-        <li><a href="#config-mac">Mac</a></li>
-      </ul>
-    </li>
+    <li><a href="#config">Config</a></li>
     <li><a href="#output">Output</a>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
@@ -180,6 +175,12 @@ Go to your <a href="https://keylogme.com">keylogme homepage</a> and create your 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+
+## Output
+
+<a href="https://keylogme.com/esoteloferry/my-crkbd">View Demo</a>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- ROADMAP -->
 ## Roadmap
