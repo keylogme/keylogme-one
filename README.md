@@ -183,7 +183,7 @@ Go to your <a href="https://keylogme.com">keylogme homepage</a> and create your 
 <!-- ROADMAP -->
 ## Roadmap
 
-- [ X ] Sender to keylogme.com
+- [x] Sender to keylogme.com
 - [ ] Reload on device & shortcut change
 
 See the [open issues](https://github.com/keylogme/keylogme-one/issues) for a full list of proposed features (and known issues).
