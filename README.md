@@ -104,14 +104,14 @@ for more information on how we mingle your content so it is undecipherable.
 
 ### Linux
 
-1. Clone the repo
+1. Get your api key for your computer in <a href="https://keylogme.com/settings/keys">your keylogme account</a>.
+
+2. Clone the repo
    ```sh
    git clone https://github.com/keylogme/keylogme-one.git
-   ```
-2. Get your api key for your computer in <a href="https://keylogme.com/settings/keys">your keylogme account</a>.
 
 
-3. Go to deploy and install with sudo permissions. Replace API_KEY with your api key.
+3. Go to folder deploy and install with sudo permissions. Replace API_KEY with your api key.
    ```sh
    cd deploy && sudo -E ./install.sh API_KEY 
    ```
@@ -130,15 +130,13 @@ for more information on how we mingle your content so it is undecipherable.
 
 ### Mac
 
-1. Clone the repo
+1. Get your api key for your computer in <a href="https://keylogme.com/settings/keys">your keylogme account</a>.
+
+2. Clone the repo
    ```sh
    git clone https://github.com/keylogme/keylogme-one.git
-   ```
 
-2. Get your api key for your computer in <a href="https://keylogme.com/settings/keys">your keylogme account</a>.
-
-
-3. Go to deploy and install with sudo permissions. Replace API_KEY with your api key.
+3. Go to folder deploy and install with sudo permissions. Replace API_KEY with your api key.
    ```sh
    cd deploy && sudo -E ./install.sh API_KEY 
    ```
