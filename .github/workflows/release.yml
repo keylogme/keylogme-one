@@ -4,11 +4,15 @@ on:
   pull_request:
     paths-ignore:
       - "**/*.md"
+      - "**/*.png"
+      - "**/*.gif"
   push:
     branches:
       - main
     paths-ignore:
       - "**/*.md"
+      - "**/*.png"
+      - "**/*.gif"
 
 permissions:
   contents: write
