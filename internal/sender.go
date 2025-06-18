@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,8 @@ const (
 	// maxMessageSize = 512
 	//
 	reconnectWait = 1 * time.Second
+	// size queue (to have some buffer if there is loss internet)
+	maxQueueSizeWrite = 10
 )
 
 type Sender struct {
@@ -64,7 +67,7 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 		reader:          make(chan k1.PayloadLogger),
 		writer: make(
 			chan []byte,
-			100,
+			maxQueueSizeWrite,
 		), // buffered channel to store payloads when there is no connection
 	}
 	context.AfterFunc(ctx, s.Close)
@@ -109,7 +112,12 @@ func (s *Sender) connectWS() error {
 	s.mu.Lock()
 	slog.Info("connectWS: got lock")
 	defer s.mu.Unlock()
-	ws, _, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
+	ws, resp, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
+	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
+		slog.Error("connectWS: Unauthorized access - check API key")
+		s.Close()
+		return fmt.Errorf("unauthorized access")
+	}
 	if err != nil {
 		slog.Error("connectWS: Could not dial server")
 		return err
@@ -165,7 +173,7 @@ func (s *Sender) handleReconnects() {
 	}
 	s.closeWS()
 	if err := s.connectWS(); err != nil {
-		slog.Info(fmt.Sprintf("Could not connect to ws: %s\n", err.Error()))
+		slog.Info(fmt.Sprintf("Could not connect to ws (%s): %s\n", s.url_ws, err.Error()))
 		return
 	}
 	err := s.run()
@@ -222,7 +230,7 @@ func (s *Sender) write() {
 			if !ok {
 				return
 			}
-			// slog.Info(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
+			slog.Info(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
 			err := s.writeMessage(websocket.BinaryMessage, p)
 			if err != nil {
 				slog.Error(
@@ -298,6 +306,14 @@ func (s *Sender) read() {
 }
 
 func (s *Sender) Send(p []byte) error {
+	if len(s.writer) == maxQueueSizeWrite {
+		slog.Info("Sender queue is full -- Sender is closed")
+	}
+	if s.closed {
+		slog.Info(
+			"Sender is closed, check api key is valid or not being used somewhere else",
+		)
+	}
 	s.writer <- p
 	return nil
 }
