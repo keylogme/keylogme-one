@@ -1,0 +1,11 @@
+[Unit]
+Description= Keylogme one (keylogme.com)
+
+[Install]
+WantedBy=multi-user.target
+
+
+[Service]
+ExecStart=${KEYLOGME_BINARY_PLACEHOLDER}
+Restart=always
+Environment="KEYLOGME_ONE_API_KEY=${KEYLOGME_ONE_API_KEY}"

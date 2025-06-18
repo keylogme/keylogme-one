@@ -22,13 +22,19 @@ import (
 
 // sudo lshw
 
-func main() {
-	APIKEY := os.Args[1]
-	ORIGIN_ENDPOINT := os.Args[2]
+const (
+	KEYLOGME_ENDPOINT = "https://keylogme.com/logger/v1"
+)
 
+func main() {
+	// Get setup
+	APIKEY := os.Getenv("KEYLOGME_ONE_API_KEY")
+	if APIKEY == "" {
+		log.Fatal("API_KEY env var is not set")
+	}
 	//****************************************************
 
-	res, err := http.Get(fmt.Sprintf("%s/config?apikey=%s", ORIGIN_ENDPOINT, APIKEY))
+	res, err := http.Get(fmt.Sprintf("%s/config?apikey=%s", KEYLOGME_ENDPOINT, APIKEY))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -41,38 +47,37 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error decoding config: %v", err)
 	}
-	// FIXME: check no duplicates of usb names of devices
-	fmt.Println("Config:")
-	fmt.Println("Devices:")
+	slog.Info("Config:")
+	slog.Info("Devices:")
 	for _, d := range config.Devices {
-		fmt.Printf("%+v\n", d)
+		slog.Info(fmt.Sprintf("%+v\n", d))
 	}
-	fmt.Println("Shortcut groups:")
+	slog.Info("Shortcut groups:")
 	for _, sg := range config.ShortcutGroups {
-		fmt.Printf("  %s %s :\n", sg.Id, sg.Name)
+		slog.Info(fmt.Sprintf("  %s %s :\n", sg.Id, sg.Name))
 		for _, sc := range sg.Shortcuts {
-			fmt.Printf("     %s %s %+v %s\n", sc.Id, sc.Name, sc.Codes, sc.Type)
+			slog.Info(fmt.Sprintf("     %s %s %+v %s\n", sc.Id, sc.Name, sc.Codes, sc.Type))
 		}
 	}
 	//****************************************************
 	ctx, cancel := context.WithCancel(context.Background())
 
-	storage := internal.MustGetNewKeylogMeStorage(ctx, ORIGIN_ENDPOINT, APIKEY)
+	security := k0.NewSecurity(config.Security)
+
+	storage := internal.MustGetNewKeylogMeStorage(ctx, KEYLOGME_ENDPOINT, APIKEY)
 
 	chEvt := make(chan k0.DeviceEvent)
-	devices := []k0.Device{}
 	for _, dev := range config.Devices {
-		d := k0.GetDevice(ctx, dev, chEvt)
-		devices = append(devices, *d)
+		k0.GetDevice(ctx, dev, chEvt)
 	}
 
 	sd := k0.MustGetNewShortcutsDetector(config.ShortcutGroups)
 
 	ss := k0.NewShiftStateDetector(config.ShiftState)
 
-	ld := k0.NewLayerDetector(config.Devices, config.ShiftState)
+	ld := k0.NewLayersDetector(config.Devices, config.ShiftState)
 
-	k0.Start(chEvt, &devices, sd, ss, ld, storage)
+	k0.Start(chEvt, security, sd, ss, ld, storage)
 
 	// Graceful shutdown
 	ctxInt, stop := signal.NotifyContext(context.Background(), os.Interrupt)
