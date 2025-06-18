@@ -32,6 +32,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if res.StatusCode != http.StatusOK {
+		log.Fatalf("Error with api key : %s", res.Status)
+	}
 	// print body as str
 	var config k0.Config
 	err = json.NewDecoder(res.Body).Decode(&config)
