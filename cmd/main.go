@@ -59,6 +59,11 @@ func main() {
 			slog.Info(fmt.Sprintf("     %s %s %+v %s\n", sc.Id, sc.Name, sc.Codes, sc.Type))
 		}
 	}
+	slog.Info("Shift state:")
+	slog.Info(fmt.Sprintf("   %+v\n", config.ShiftState))
+
+	slog.Info("Security:")
+	slog.Info(fmt.Sprintf("   %+v\n", config.Security))
 	//****************************************************
 	ctx, cancel := context.WithCancel(context.Background())
 

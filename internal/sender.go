@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ func MustGetNewSender(ctx context.Context, origin, apikey string) *Sender {
 	}
 
 	trimmedOrigin := strings.TrimPrefix(origin, "http")
-	url_ws := fmt.Sprintf("ws%s?apikey=%s", trimmedOrigin, apikey)
+	url_ws := fmt.Sprintf("ws%s?apikey=%s&os=%s", trimmedOrigin, apikey, runtime.GOOS)
 	s := &Sender{
 		ctx:             ctx,
 		mu:              sync.Mutex{},
