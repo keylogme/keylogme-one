@@ -17,12 +17,6 @@ import (
 	"github.com/keylogme/keylogme-one/internal"
 )
 
-// install sudo apt-get install input-utils
-// sudo lsinput | grep name
-// sudo lsusb
-
-// sudo lshw
-
 const (
 	KEYLOGME_ENDPOINT = "https://keylogme.com/logger/v1"
 )
