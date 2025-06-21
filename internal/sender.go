@@ -269,10 +269,10 @@ func (s *Sender) read() {
 	for {
 		select {
 		case <-s.done:
-			slog.Info("reader: done signal")
+			slog.Debug("reader: done signal")
 			return
 		case <-s.ctx.Done():
-			slog.Info("reader: ctx done")
+			slog.Debug("reader: ctx done")
 			return
 		default:
 			if s.ws == nil {

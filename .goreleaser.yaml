@@ -27,6 +27,9 @@ builds:
       - goos: darwin
         env:
           - CGO_ENABLED=1
+        # Add ldflags for macOS frameworks
+        ldflags:
+          - -s -w -extldflags "-framework IOKit -framework CoreFoundation"
 
 archives:
   - format: tar.gz
