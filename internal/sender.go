@@ -320,7 +320,7 @@ func (s *Sender) Send(p []byte) error {
 }
 
 func (s *Sender) Close() {
-	slog.Info("💤 Close sender")
+	slog.Info("💤 Close sender ")
 	if s.closed {
 		slog.Info("close: sender already closed")
 		return
