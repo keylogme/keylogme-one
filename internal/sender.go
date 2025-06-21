@@ -308,7 +308,7 @@ func (s *Sender) read() {
 
 func (s *Sender) Send(p []byte) error {
 	if len(s.writer) == maxQueueSizeWrite {
-		slog.Info("Sender queue is full. Maybe there is no internet connection")
+		slog.Info("Sender queue is full")
 	}
 	if s.closed {
 		slog.Info(
