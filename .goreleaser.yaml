@@ -15,7 +15,7 @@ before:
 builds:
   - main: ./cmd/main.go
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -24,9 +24,9 @@ builds:
       - arm64
     # Override CGO_ENABLED for linux builds
     overrides:
-      - goos: linux
+      - goos: darwin
         env:
-          - CGO_ENABLED=0
+          - CGO_ENABLED=1
 
 archives:
   - format: tar.gz
