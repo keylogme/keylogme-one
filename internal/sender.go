@@ -26,10 +26,9 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 	// Maximum message size allowed from peer.
 	// maxMessageSize = 512
-	//
 	reconnectWait = 1 * time.Second
 	// size queue (to have some buffer if there is loss internet)
-	maxQueueSizeWrite = 10
+	maxQueueSizeWrite = 100
 )
 
 type Sender struct {
@@ -87,31 +86,32 @@ func (s *Sender) updateURL(url string) error {
 }
 
 func (s *Sender) closeWS() {
-	slog.Info("closeWS: closing ws...")
+	slog.Debug("closeWS: closing ws...")
 	s.mu.Lock()
-	slog.Info("closeWS: got lock")
+	slog.Debug("closeWS: got lock")
 	defer s.mu.Unlock()
 	if s.ws == nil {
-		slog.Info("closeWS: ws is nil")
+		slog.Debug("closeWS: ws is nil")
 		return
 	}
-	slog.Info("closeWS: closing ws connection")
+	slog.Debug("closeWS: closing ws connection")
 	_ = s.ws.WriteMessage(
 		websocket.CloseMessage,
 		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
 	)
 	s.ws.Close()
 	s.wg.Wait() // wait for goroutines to finish
-	slog.Info("closeWS: ws connection closed")
+	slog.Debug("closeWS: ws connection closed")
+	s.ws = nil
 }
 
 func (s *Sender) connectWS() error {
-	slog.Info("connectWS: connecting ws...")
+	slog.Debug("connectWS: connecting ws...")
 	if s.url_ws == "" {
 		return fmt.Errorf("url_ws is empty")
 	}
 	s.mu.Lock()
-	slog.Info("connectWS: got lock")
+	slog.Debug("connectWS: got lock")
 	defer s.mu.Unlock()
 	ws, resp, err := websocket.DefaultDialer.Dial(s.url_ws, nil)
 	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
@@ -126,7 +126,7 @@ func (s *Sender) connectWS() error {
 	s.ws = ws
 	s.closed = false
 	s.done = make(chan struct{})
-	slog.Info("connectWS: connected")
+	slog.Debug("connectWS: connected")
 	return nil
 }
 
@@ -141,13 +141,13 @@ func (s *Sender) run() error {
 	go s.write()
 
 	s.wg.Wait()
-	slog.Info("Sender run completed")
+	slog.Debug("Sender run completed")
 	return nil
 }
 
 func (s *Sender) processMessageQueue() {
 	defer func() {
-		slog.Info("processMessageQueue: closing")
+		slog.Debug("processMessageQueue: closing")
 	}()
 	for {
 		if len(s.writer) > 0 {
@@ -189,14 +189,14 @@ func (s *Sender) writeMessage(messageType int, message []byte) error {
 	defer s.mu.Unlock()
 
 	if s.ws == nil {
-		slog.Info("ws is nil")
+		slog.Debug("ws is nil")
 		return websocket.ErrCloseSent // Return an error indicating the connection is closed
 	}
 
 	// Set the write deadline
 	// slog.Info("setting write deadline")
 	if err := s.ws.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-		log.Printf("Error setting write deadline: %v", err)
+		slog.Error(fmt.Sprintf("Error setting write deadline: %v", err))
 		return err
 	}
 
@@ -216,7 +216,7 @@ func (s *Sender) write() {
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	defer func() {
-		slog.Info("------------------Closing write------------------")
+		slog.Debug("------------------Closing write------------------")
 	}()
 
 	for {
@@ -231,7 +231,7 @@ func (s *Sender) write() {
 			if !ok {
 				return
 			}
-			slog.Info(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
+			slog.Debug(fmt.Sprintf("Sending payload %s, queue %d\n", string(p), len(s.writer)))
 			err := s.writeMessage(websocket.BinaryMessage, p)
 			if err != nil {
 				slog.Error(
@@ -242,7 +242,7 @@ func (s *Sender) write() {
 			}
 
 		case <-ticker.C:
-			slog.Info("Sending ping")
+			slog.Debug("Sending ping")
 			err := s.writeMessage(websocket.PingMessage, nil)
 			if err != nil {
 				slog.Error(fmt.Sprintf("Error sending ping: %v", err))
@@ -257,7 +257,7 @@ func (s *Sender) read() {
 	defer s.wg.Done()
 
 	defer func() {
-		slog.Info("------------------Closing read------------------")
+		slog.Debug("------------------Closing read------------------")
 	}()
 	if err := s.ws.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 		slog.Error(fmt.Sprintf("Could not set read deadline: %s\n", err.Error()))
@@ -328,5 +328,5 @@ func (s *Sender) Close() {
 	s.closed = true
 	s.closeWS()
 	s.wg.Wait()
-	slog.Info("close: sender closed")
+	slog.Debug("close: sender closed")
 }
