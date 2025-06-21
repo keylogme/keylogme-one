@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"time"
 
 	k0 "github.com/keylogme/keylogme-zero"
@@ -30,13 +31,18 @@ func main() {
 	// Get setup
 	APIKEY := os.Getenv("KEYLOGME_ONE_API_KEY")
 	if APIKEY == "" {
-		log.Fatal("API_KEY env var is not set")
+		log.Fatal("KEYLOGME_ONE_API_KEY env var is not set")
 	}
 	//****************************************************
 
-	res, err := http.Get(fmt.Sprintf("%s/config?apikey=%s", KEYLOGME_ENDPOINT, APIKEY))
+	res, err := http.Get(
+		fmt.Sprintf("%s/config?apikey=%s&os=%s", KEYLOGME_ENDPOINT, APIKEY, runtime.GOOS),
+	)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		log.Fatalf("Error with api key : %s", res.Status)
 	}
 	// print body as str
 	var config k0.Config
@@ -56,6 +62,11 @@ func main() {
 			slog.Info(fmt.Sprintf("     %s %s %+v %s\n", sc.Id, sc.Name, sc.Codes, sc.Type))
 		}
 	}
+	slog.Info("Shift state:")
+	slog.Info(fmt.Sprintf("   %+v\n", config.ShiftState))
+
+	slog.Info("Security:")
+	slog.Info(fmt.Sprintf("   %+v\n", config.Security))
 	//****************************************************
 	ctx, cancel := context.WithCancel(context.Background())
 
